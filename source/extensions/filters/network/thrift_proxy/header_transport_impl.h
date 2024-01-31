@@ -37,7 +37,7 @@ public:
   static constexpr int32_t MaxFrameSize = 0x3FFFFFFF;
 
 private:
-  static constexpr uint16_t Magic = 0x0FFF;
+  static constexpr uint16_t Magic = 0x1000;
 
   static int16_t drainVarIntI16(Buffer::Instance& buffer, int32_t& header_size, const char* desc);
   static int32_t drainVarIntI32(Buffer::Instance& buffer, int32_t& header_size, const char* desc);
