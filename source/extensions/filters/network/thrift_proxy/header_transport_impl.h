@@ -43,7 +43,7 @@ private:
   static int32_t drainVarIntI32(Buffer::Instance& buffer, int32_t& header_size, const char* desc);
   static std::string drainVarString(Buffer::Instance& buffer, int32_t& header_size,
                                     const char* desc);
-  static std::string peekStringU16(Buffer::Instance& buffer, uint64_t offset, int16_t& str_len);
+  static std::string peekStringU16(Buffer::Instance& buffer, int16_t& str_len);
   static void writeVarString(Buffer::Instance& buffer, const absl::string_view str);
 
   absl::optional<AppExceptionType> exception_;
