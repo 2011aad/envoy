@@ -16,6 +16,7 @@ namespace NetworkFilters {
 namespace ThriftProxy {
 
 bool AutoTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMetadata& metadata) {
+  ENVOY_LOG(debug, "====buffer size {}", buffer.length());
   if (transport_ == nullptr) {
     // Not enough data to select a transport.
     if (buffer.length() < 8) {
@@ -47,7 +48,8 @@ bool AutoTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMetada
         setTransport(std::make_unique<UnframedTransportImpl>());
       }
     }
-
+    
+    ENVOY_LOG(debug, "========transport_ name {}", transport_->name());
     if (transport_ == nullptr) {
       uint8_t start[9] = {0};
       buffer.copyOut(0, 8, start);
@@ -58,7 +60,7 @@ bool AutoTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMetada
                                        start[6], start[7]));
     }
   }
-
+  ENVOY_LOG(debug, "========transport_ name {}", transport_->name());
   return transport_->decodeFrameStart(buffer, metadata);
 }
 
