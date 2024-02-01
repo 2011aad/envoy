@@ -255,16 +255,12 @@ void HeaderTransportImpl::encodeFrame(Buffer::Instance& buffer, const MessageMet
     header_buffer.writeBEInt<int16_t>(static_cast<int16_t>(headers_size));
     // BufferHelper::writeVarIntI32(header_buffer, static_cast<int32_t>(headers_size));
 
-    auto formatter = metadata.isRequest() ? metadata.requestHeaders().formatter()
-                                          : metadata.responseHeaders().formatter();
+    // auto formatter = metadata.isRequest() ? metadata.requestHeaders().formatter()
+    //                                       : metadata.responseHeaders().formatter();
 
-    auto header_writer = [&header_buffer,
-                          formatter](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {
+    auto header_writer = [&header_buffer](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {
       const auto header_key = header.key().getStringView();
       const auto key = header_key;
-      if (formatter) {
-        key = header_key;
-      }
       header_buffer.writeBEInt<uint16_t>(key.length());
       header_buffer.add(key.data(), key.length());
       const auto value = header.value().getStringView();
