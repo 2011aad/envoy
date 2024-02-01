@@ -232,24 +232,28 @@ void HeaderTransportImpl::encodeFrame(Buffer::Instance& buffer, const MessageMet
 
   switch (metadata.protocol()) {
   case ProtocolType::Binary:
-    BufferHelper::writeVarIntI32(header_buffer, static_cast<int32_t>(HeaderProtocolType::Binary));
+    header_buffer.writeByte(static_cast<uint8_t>(HeaderProtocolType::Binary));
+    // BufferHelper::writeVarIntI32(header_buffer, static_cast<int32_t>(HeaderProtocolType::Binary));
     break;
   case ProtocolType::Compact:
-    BufferHelper::writeVarIntI32(header_buffer, static_cast<int32_t>(HeaderProtocolType::Compact));
+    header_buffer.writeByte(static_cast<uint8_t>(HeaderProtocolType::Compact));
+    // BufferHelper::writeVarIntI32(header_buffer, static_cast<int32_t>(HeaderProtocolType::Compact));
     break;
   default:
     throw EnvoyException(fmt::format("invalid header transport protocol {}",
                                      ProtocolNames::get().fromType(metadata.protocol())));
   }
 
-  BufferHelper::writeVarIntI32(header_buffer, 0); // num transforms
+  header_buffer.writeByte(0);
+  // BufferHelper::writeVarIntI32(header_buffer, 0); // num transforms
 
   if (headers_size > 0) {
     // Info ID 1
     header_buffer.writeByte(1);
 
     // Num headers
-    BufferHelper::writeVarIntI32(header_buffer, static_cast<int32_t>(headers_size));
+    header_buffer.writeBEInt<int16_t>(static_cast<int16_t>(headers_size));
+    // BufferHelper::writeVarIntI32(header_buffer, static_cast<int32_t>(headers_size));
 
     auto formatter = metadata.isRequest() ? metadata.requestHeaders().formatter()
                                           : metadata.responseHeaders().formatter();
@@ -257,9 +261,14 @@ void HeaderTransportImpl::encodeFrame(Buffer::Instance& buffer, const MessageMet
     auto header_writer = [&header_buffer,
                           formatter](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {
       const auto header_key = header.key().getStringView();
-
-      writeVarString(header_buffer, formatter ? formatter->format(header_key) : header_key);
-      writeVarString(header_buffer, header.value().getStringView());
+      const std::string key = formatter ? formatter->format(header_key) : header_key;
+      header_buffer.writeBEInt<uint16_t>(key.length());
+      header_buffer.add(key.data(), key.length());
+      const std::string value = header.value().getStringView();
+      header_buffer.writeBEInt<uint16_t>(value.length());
+      header_buffer.add(value.data(), value.length());
+      // writeVarString(header_buffer, formatter ? formatter->format(header_key) : header_key);
+      // writeVarString(header_buffer, header.value().getStringView());
       return Http::HeaderMap::Iterate::Continue;
     };
 
