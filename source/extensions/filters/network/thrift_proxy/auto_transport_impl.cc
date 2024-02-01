@@ -1,8 +1,11 @@
+#include <iostream>
+
 #include "source/extensions/filters/network/thrift_proxy/auto_transport_impl.h"
 
 #include "envoy/common/exception.h"
 
 #include "source/common/common/assert.h"
+#include "source/common/common/logger.h"
 #include "source/extensions/filters/network/thrift_proxy/binary_protocol_impl.h"
 #include "source/extensions/filters/network/thrift_proxy/buffer_helper.h"
 #include "source/extensions/filters/network/thrift_proxy/compact_protocol_impl.h"
@@ -16,7 +19,7 @@ namespace NetworkFilters {
 namespace ThriftProxy {
 
 bool AutoTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMetadata& metadata) {
-  ENVOY_LOG(debug, "====buffer size {}", buffer.length());
+  std::cout << "====buffer size: " << buffer.length() << std::endl;
   if (transport_ == nullptr) {
     // Not enough data to select a transport.
     if (buffer.length() < 8) {
@@ -48,8 +51,7 @@ bool AutoTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMetada
         setTransport(std::make_unique<UnframedTransportImpl>());
       }
     }
-    
-    ENVOY_LOG(debug, "========transport_ name {}", transport_->name());
+    std::cout << "========transport_ name: " << transport_->name() << std::endl;
     if (transport_ == nullptr) {
       uint8_t start[9] = {0};
       buffer.copyOut(0, 8, start);
@@ -60,7 +62,7 @@ bool AutoTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMetada
                                        start[6], start[7]));
     }
   }
-  ENVOY_LOG(debug, "========transport_ name {}", transport_->name());
+  std::cout << "========transport_ name: " << transport_->name() << std::endl;
   return transport_->decodeFrameStart(buffer, metadata);
 }
 
