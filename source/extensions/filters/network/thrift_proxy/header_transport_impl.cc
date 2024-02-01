@@ -100,7 +100,10 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
 
   ProtocolType proto = ProtocolType::Auto;
   HeaderProtocolType header_proto =
-      static_cast<HeaderProtocolType>(drainVarIntI16(buffer, header_size, "protocol id"));
+      static_cast<HeaderProtocolType>(buffer.peekBEInt<int8_t>(14));
+      // static_cast<HeaderProtocolType>(drainVarIntI16(buffer, header_size, "protocol id"));
+  header_size -= 1;
+  buffer.drain(1);
   switch (header_proto) {
   case HeaderProtocolType::Binary:
     proto = ProtocolType::Binary;
@@ -113,23 +116,31 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
   }
   metadata.setProtocol(proto);
 
-  int16_t num_xforms = drainVarIntI16(buffer, header_size, "transform count");
+  int8_t num_xforms = buffer.peekBEInt<int8_t>(15);
+  header_size -= 1;
+  buffer.drain(1);
+  // int16_t num_xforms = drainVarIntI16(buffer, header_size, "transform count");
   if (num_xforms < 0) {
     throw EnvoyException(absl::StrCat("invalid header transport transform count ", num_xforms));
   }
 
+  int header_offset = 16;
   while (num_xforms-- > 0) {
-    int32_t xform_id = drainVarIntI32(buffer, header_size, "transform id");
+    // int32_t xform_id = drainVarIntI32(buffer, header_size, "transform id");
+    int8_t xform_id = buffer.peekBEInt<int8_t>(header_offset);
+    header_offset += sizeof(int8_t);
+    header_size -= sizeof(int8_t);
+    buffer.drain(sizeof(int8_t));
 
     // To date, no transforms have a data field. In the future, some transform IDs may require
     // consuming another varint 32 at this point. The known transform IDs are:
     // 1: zlib compression
     // 2: hmac (appended to end of packet)
     // 3: snappy compression
-    buffer.drain(header_size);
-    metadata.setAppException(AppExceptionType::MissingResult,
-                             absl::StrCat("Unknown transform ", xform_id));
-    return true;
+    // buffer.drain(header_size);
+    // metadata.setAppException(AppExceptionType::MissingResult,
+    //                          absl::StrCat("Unknown transform ", xform_id));
+    // return true;
   }
 
   const bool is_request = metadata.isRequest();
@@ -138,21 +149,37 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
 
   while (header_size > 0) {
     // Attempt to read info blocks
-    int32_t info_id = drainVarIntI32(buffer, header_size, "info id");
-    if (info_id != 1) {
+    // int32_t info_id = drainVarIntI32(buffer, header_size, "info id");
+    int8_t info_id = buffer.peekBEInt<int8_t>(header_offset);
+    if (info_id == 0x11) {
+      std::string key_string = peekStringU16(buffer, header_offset, key_len);
+      header_offset += sizeof(uint16_t) + key_len;
+      header_size -= (sizeof(uint16_t) + key_len);
+      buffer.drain((sizeof(uint16_t) + key_len));
+      continue;
+    } else if (info_id != 1) {
       // 0 indicates a padding byte, and the end of the info block.
       // 1 indicates an info id header/value pair.
       // Any other value is an unknown info id block, which we ignore.
       break;
     }
 
-    int32_t num_headers = drainVarIntI32(buffer, header_size, "header count");
+    // int32_t num_headers = drainVarIntI32(buffer, header_size, "header count");
+    int16_t num_headers = buffer.peekBEInt<int16_t>(header_offset);
+    header_offset += sizeof(uint16_t);
+    header_size -= sizeof(uint16_t);
+    buffer.drain(sizeof(uint16_t));
     if (num_headers < 0) {
       throw EnvoyException(absl::StrCat("invalid header transport header count ", num_headers));
     }
 
+    uint16_t key_len, value_len;
     while (num_headers-- > 0) {
-      std::string key_string = drainVarString(buffer, header_size, "header key");
+      std::string key_string = peekStringU16(buffer, header_offset, key_len);
+      header_offset += sizeof(uint16_t) + key_len;
+      header_size -= (sizeof(uint16_t) + key_len);
+      buffer.drain((sizeof(uint16_t) + key_len));
+      // std::string key_string = drainVarString(buffer, header_size, "header key");
       if (formatter) {
         formatter->processKey(key_string);
       }
@@ -161,7 +188,10 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
           absl::StrReplaceAll(key_string, {{std::string(1, '\0'), ""}, {"\n", ""}, {"\r", ""}});
 
       const Http::LowerCaseString key = Http::LowerCaseString(key_string);
-      const std::string value = drainVarString(buffer, header_size, "header value");
+      const std::string value = peekStringU16(buffer, header_offset, value_len);
+      header_offset += sizeof(uint16_t) + value_len;
+      header_size -= (sizeof(uint16_t) + value_len);
+      buffer.drain((sizeof(uint16_t) + value_len));
 
       if (is_request) {
         metadata.requestHeaders().addCopy(key, value);
@@ -323,6 +353,12 @@ std::string HeaderTransportImpl::drainVarString(Buffer::Instance& buffer, int32_
   const std::string value(static_cast<char*>(buffer.linearize(str_len)), str_len);
   buffer.drain(str_len);
   header_size -= str_len;
+  return value;
+}
+
+std::string HeaderTransportImpl::peekStringU16(Buffer::Instance& buffer, uint64_t offset, int16_t& str_len) {
+  str_len = buffer.peekBEInt<int16_t>(offset);
+  const std::string value(static_cast<char*>(buffer.linearize(str_len)), str_len);
   return value;
 }
 
