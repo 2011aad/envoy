@@ -100,7 +100,7 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
 
   ProtocolType proto = ProtocolType::Auto;
   HeaderProtocolType header_proto =
-      static_cast<HeaderProtocolType>(buffer.peekBEInt<int8_t>(14));
+      static_cast<HeaderProtocolType>(buffer.peekBEInt<int8_t>());
       // static_cast<HeaderProtocolType>(drainVarIntI16(buffer, header_size, "protocol id"));
   header_size -= 1;
   buffer.drain(1);
@@ -116,7 +116,7 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
   }
   metadata.setProtocol(proto);
 
-  int8_t num_xforms = buffer.peekBEInt<int8_t>(15);
+  int8_t num_xforms = buffer.peekBEInt<int8_t>();
   header_size -= 1;
   buffer.drain(1);
   // int16_t num_xforms = drainVarIntI16(buffer, header_size, "transform count");
@@ -124,11 +124,9 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
     throw EnvoyException(absl::StrCat("invalid header transport transform count ", num_xforms));
   }
 
-  int header_offset = 16;
   while (num_xforms-- > 0) {
     // int32_t xform_id = drainVarIntI32(buffer, header_size, "transform id");
-    // int8_t xform_id = buffer.peekBEInt<int8_t>(header_offset);
-    header_offset += sizeof(int8_t);
+    // int8_t xform_id = buffer.peekBEInt<int8_t>();
     header_size -= sizeof(int8_t);
     buffer.drain(sizeof(int8_t));
 
@@ -151,12 +149,12 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
   while (header_size > 0) {
     // Attempt to read info blocks
     // int32_t info_id = drainVarIntI32(buffer, header_size, "info id");
-    int8_t info_id = buffer.peekBEInt<int8_t>(header_offset);
+    int8_t info_id = buffer.peekBEInt<int8_t>();
+    header_size -= sizeof(int8_t);
+    buffer.drain(sizeof(int8_t));
     if (info_id == 0x11) {
-      std::string key_string = peekStringU16(buffer, header_offset, key_len);
-      header_offset += sizeof(int16_t) + key_len;
+      std::string key_string = peekStringU16(buffer, key_len);
       header_size -= (sizeof(int16_t) + key_len);
-      buffer.drain((sizeof(int16_t) + key_len));
       continue;
     } else if (info_id != 1) {
       // 0 indicates a padding byte, and the end of the info block.
@@ -166,8 +164,7 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
     }
 
     // int32_t num_headers = drainVarIntI32(buffer, header_size, "header count");
-    int16_t num_headers = buffer.peekBEInt<int16_t>(header_offset);
-    header_offset += sizeof(uint16_t);
+    int16_t num_headers = buffer.peekBEInt<int16_t>();
     header_size -= sizeof(uint16_t);
     buffer.drain(sizeof(uint16_t));
     if (num_headers < 0) {
@@ -175,10 +172,8 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
     }
 
     while (num_headers-- > 0) {
-      std::string key_string = peekStringU16(buffer, header_offset, key_len);
-      header_offset += sizeof(uint16_t) + key_len;
+      std::string key_string = peekStringU16(buffer, key_len);
       header_size -= (sizeof(uint16_t) + key_len);
-      buffer.drain((sizeof(uint16_t) + key_len));
       // std::string key_string = drainVarString(buffer, header_size, "header key");
       if (formatter) {
         formatter->processKey(key_string);
@@ -188,10 +183,8 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
           absl::StrReplaceAll(key_string, {{std::string(1, '\0'), ""}, {"\n", ""}, {"\r", ""}});
 
       const Http::LowerCaseString key = Http::LowerCaseString(key_string);
-      const std::string value = peekStringU16(buffer, header_offset, value_len);
-      header_offset += sizeof(uint16_t) + value_len;
+      const std::string value = peekStringU16(buffer, value_len);
       header_size -= (sizeof(uint16_t) + value_len);
-      buffer.drain((sizeof(uint16_t) + value_len));
 
       if (is_request) {
         metadata.requestHeaders().addCopy(key, value);
@@ -356,9 +349,11 @@ std::string HeaderTransportImpl::drainVarString(Buffer::Instance& buffer, int32_
   return value;
 }
 
-std::string HeaderTransportImpl::peekStringU16(Buffer::Instance& buffer, uint64_t offset, int16_t& str_len) {
-  str_len = buffer.peekBEInt<int16_t>(offset);
+std::string HeaderTransportImpl::peekStringU16(Buffer::Instance& buffer, int16_t& str_len) {
+  str_len = buffer.peekBEInt<int16_t>();
+  buffer.drain(sizeof(int16_t));
   const std::string value(static_cast<char*>(buffer.linearize(str_len)), str_len);
+  buffer.drain(str_len);
   return value;
 }
 
