@@ -263,7 +263,7 @@ void HeaderTransportImpl::encodeFrame(Buffer::Instance& buffer, const MessageMet
       const auto header_key = header.key().getStringView();
       const auto key = header_key;
       if (formatter) {
-        key = formatter->format(header_key);
+        key = header_key;
       }
       header_buffer.writeBEInt<uint16_t>(key.length());
       header_buffer.add(key.data(), key.length());
