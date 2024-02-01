@@ -261,10 +261,10 @@ void HeaderTransportImpl::encodeFrame(Buffer::Instance& buffer, const MessageMet
     auto header_writer = [&header_buffer,
                           formatter](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {
       const auto header_key = header.key().getStringView();
-      const std::string key = formatter ? formatter->format(header_key) : header_key;
+      const auto key = formatter ? formatter->format(header_key) : header_key;
       header_buffer.writeBEInt<uint16_t>(key.length());
       header_buffer.add(key.data(), key.length());
-      const std::string value = header.value().getStringView();
+      const auto value = header.value().getStringView();
       header_buffer.writeBEInt<uint16_t>(value.length());
       header_buffer.add(value.data(), value.length());
       // writeVarString(header_buffer, formatter ? formatter->format(header_key) : header_key);
