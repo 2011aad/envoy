@@ -127,7 +127,7 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
   int header_offset = 16;
   while (num_xforms-- > 0) {
     // int32_t xform_id = drainVarIntI32(buffer, header_size, "transform id");
-    int8_t xform_id = buffer.peekBEInt<int8_t>(header_offset);
+    // int8_t xform_id = buffer.peekBEInt<int8_t>(header_offset);
     header_offset += sizeof(int8_t);
     header_size -= sizeof(int8_t);
     buffer.drain(sizeof(int8_t));
@@ -147,15 +147,16 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
   auto formatter =
       is_request ? metadata.requestHeaders().formatter() : metadata.responseHeaders().formatter();
 
+  int16_t key_len, value_len;
   while (header_size > 0) {
     // Attempt to read info blocks
     // int32_t info_id = drainVarIntI32(buffer, header_size, "info id");
     int8_t info_id = buffer.peekBEInt<int8_t>(header_offset);
     if (info_id == 0x11) {
       std::string key_string = peekStringU16(buffer, header_offset, key_len);
-      header_offset += sizeof(uint16_t) + key_len;
-      header_size -= (sizeof(uint16_t) + key_len);
-      buffer.drain((sizeof(uint16_t) + key_len));
+      header_offset += sizeof(int16_t) + key_len;
+      header_size -= (sizeof(int16_t) + key_len);
+      buffer.drain((sizeof(int16_t) + key_len));
       continue;
     } else if (info_id != 1) {
       // 0 indicates a padding byte, and the end of the info block.
@@ -173,7 +174,6 @@ bool HeaderTransportImpl::decodeFrameStart(Buffer::Instance& buffer, MessageMeta
       throw EnvoyException(absl::StrCat("invalid header transport header count ", num_headers));
     }
 
-    uint16_t key_len, value_len;
     while (num_headers-- > 0) {
       std::string key_string = peekStringU16(buffer, header_offset, key_len);
       header_offset += sizeof(uint16_t) + key_len;
